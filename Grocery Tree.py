@@ -2,7 +2,7 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.keys import Keys
-#import GroceryCategoryTreeClass  work in progress
+import GroceryCategoryTreeClass # work in progress
 import time
 
 
@@ -17,7 +17,6 @@ def seleniumGetsHTML(site):
 
     html = BeautifulSoup(driver.page_source, 'html.parser')
 
-        
     driver.close()
     driver.quit()
 
@@ -59,9 +58,11 @@ def getSiblingCategoryTags(html):
 
 # gets the tags of the category nodes based off of the siblings
 # this will end up being the function where we build our tree and add some data.
-#def buildCategoryTree(html, treeObj):
 
-def buildCategoryTree(html):
+# note, this only works for heb.com for the time being, as it is tailored to the html tag's layout specifically from heb.com.
+
+
+def buildCategoryList(html):
 
     # because all of the categories are in <a> tags under <li> tags
     allLists = html.findAll('li')
@@ -78,6 +79,9 @@ def buildCategoryTree(html):
         for ea in h4:
             if ea is not None:
                 umbrellaCategoryList.append(ea)
+
+
+                # maybe here we get the parent li?
 
     # we then figure out how many umbrella categories there are
     # and make an array that will tally up how many categories
@@ -106,44 +110,115 @@ def buildCategoryTree(html):
             subCatCounter[subCatCounterIndex] = count
             subCatCounterIndex += 1
 
-    
         
     # we now put all of the umbrella category and sub category tags and add them to a dictionary
     # the key will be the umbrella category tags, the value is a list of sub categories respective to their umbrella category
     
-    categoryDictionary = {}
+    categoryList = []
     subCatCounterIndex = 0
     index = 0
     
     for eachUmbrella in umbrellaCategoryList:
 
-#        print ('\n')
-#        print(eachUmbrella.get_text())
         tempList = []
         count = 0
 
         while count < subCatCounter[subCatCounterIndex]:
 
-            tempList.append(subLists[index].get_text())
-#            print(subLists[index].get_text())
+            tempList.append(subLists[index])
 
             count += 1
             index += 1
 
         
-        categoryDictionary.update({eachUmbrella.get_text(): tempList[:]})
+        categoryList.append([eachUmbrella, tempList[:]])
         subCatCounterIndex += 1
 
-#    print('\n')
-#    print (categoryDictionary)
+    return categoryList
 
+
+# here we build a tree of categories and collect individual pieces of information regarding each tree
+# such as hrefs that will be used to collect data on items of each category and subcategory
+def buildCategoryTree(catLists):
+
+    # the tree we will be returning
+    tree = GroceryCategoryTreeClass.GroceryCategoryTree()
+
+    tempUmbCat = [] # instead of appending umbrella categories, we fill an empty list
+                    # doing so gets rid of the leading 0 object in the list.
+    
+    for umb in catLists:
+
+        # here we get the umbrella categories, Fruit & Vegetables, Meat & Seafood
+        # you will notice that there are no hrefs or items being added
+        # we only get the name of the umbrella category and build the list of sub categories
+
+        # create an empty GroceryCategoryTree object.
+        umbrellaCategory = GroceryCategoryTreeClass.GroceryCategoryTree()
+
+        umbrellaCategory.setCategoryName(umb[0].get_text())
+
+        tempSubCat = [] # instead of appending umbrella categories, we fill an empty list
+                        # doing so gets rid of the leading 0 object in the list.
+       
+        for sub in umb[1]:
+
+            # here we get the umbrella's subcategories, Fruit, Vegetables, Meat, Seafood
+            # you will notice that there are no subcategories
+            # items will be added later on
+            # we only get the name and href of each sub category
+            # then append to a temp list of sub categories
+            
+            # create an empty GroceryCategoryTree object.
+            subCategory = GroceryCategoryTreeClass.GroceryCategoryTree()
+            
+            subCategory.setCategoryName(sub.get_text())
+            subCategory.setCategory_href(sub.find()['href'])
+
+            # here we append the subcategory to a temp list of subcategories
+            tempSubCat.append(subCategory)  # list of sub categories within umbrella category
+
+        # here we set the list of subcategories to the umbrellaCategory Object
+        umbrellaCategory.setSubCategory(tempSubCat)
+
+        # here we append a list of umbrella categories to a temporary list of umbrella categories
+        tempUmbCat.append(umbrellaCategory)
+        
+
+
+    # here we set the umbrella categories of the first node of the tree, named 'Shop'
+    # note we do not add href or category items to this node
+    # we only set the name and the list of umbrella categories
+    
+    tree.setCategoryName('Shop')
+    tree.setSubCategory(tempUmbCat)
+    
+    return tree
+
+
+# prints a visual representation of the categories and sub categories tree.
+def printCategoryTree(tree):
+
+    print(tree.getCategoryName())
+
+    umbrellaCategories = tree.getSubCategory()
+
+
+    for eachUmbrella in tree.getSubCategory():
+
+        print('  |')
+        print('  |')
+        print('  |--' + eachUmbrella.getCategoryName())
+
+        for eachSub in eachUmbrella.getSubCategory():
+            print('  |    |')
+            print('  |    |--' + eachSub.getCategoryName())
+    
 
     
 # main function    
 def main():
     
-    # our tree object where we append the nodes and their respective data values.
-#    groceryCategoryTreeObject = [0]   Work in Progress
     
     # THIS ONLY WORKS FOR HEB.COM
     # page we will be visiting to build our tree
@@ -162,10 +237,20 @@ def main():
     # this tag contains children tags that contain the categories and subcategories
     allCategoryNodes = getSiblingCategoryTags(startingNode)
 
+    # build a dictionary of categories and sub categories
+    # return a dictionary that will easily be dissectable
+    categoryLists = buildCategoryList(allCategoryNodes)
+
     # this function will take the components of each sub category tags and add them to
     # a list of instances of the GroceryCategoryTree object
-#    groceryCategoryTreeObject = buildCategoryDictionary(allCategoryNodes, groceryCategoryTreeObject)   Work In Progress
-    buildCategoryTree(allCategoryNodes)
+
+    # our tree object where we append the nodes and their respective data values.
+    groceryCategoryTreeObject = GroceryCategoryTreeClass.GroceryCategoryTree()
+
+    # build the HEB shopping tree
+    groceryCategoryTreeObject = buildCategoryTree(categoryLists)
+
+    printCategoryTree(groceryCategoryTreeObject)
        
         
 main()
