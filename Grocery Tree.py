@@ -1,19 +1,39 @@
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.common.keys import Keys
-import GroceryCategoryTreeClass # work in progress
+#from selenium.webdriver.common.keys import Keys
+import GroceryCategoryTreeClass
+import re
 import time
 
 
 # using Selenium to open given websites to extract html code.
 
+#**************************************************************************************************************************
+# THIS IS WHERE WE START THE PROCESS TO BUILD A TREE OF CATEGORY OBJECTS.
+
+# funtion where selenium gathers html from each web page
 def seleniumGetsHTML(site):
 
 
     driver = webdriver.Chrome(ChromeDriverManager().install())
     driver.get(site)
     time.sleep(6)  ### Timer to allow time for the compiler to grab html
+
+    html = BeautifulSoup(driver.page_source, 'html.parser')
+
+    driver.close()
+    driver.quit()
+
+    return html
+
+# function where selenium gathers items from each category
+def seleniumGetsItems(site):
+
+
+    driver = webdriver.Chrome(ChromeDriverManager().install())
+    driver.get(site)
+    time.sleep(600)  ### Timer to allow time for the compiler to grab html
 
     html = BeautifulSoup(driver.page_source, 'html.parser')
 
@@ -36,7 +56,7 @@ def getStartingNode(html):
 
     ### If not, then we look for a <button> with aria-expanded="false"
 
-    
+    htmlNode = ''
     # Finds the startingKeyword as apart of startingKeywordTag,  <a> tag in this case   
     for search in tagSearch:
         for keyword in startingKeyword:
@@ -60,8 +80,6 @@ def getSiblingCategoryTags(html):
 # this will end up being the function where we build our tree and add some data.
 
 # note, this only works for heb.com for the time being, as it is tailored to the html tag's layout specifically from heb.com.
-
-
 def buildCategoryList(html):
 
     # because all of the categories are in <a> tags under <li> tags
@@ -77,7 +95,7 @@ def buildCategoryList(html):
         
         h4 = lists.findAll('h4')
         for ea in h4:
-            if ea is not None:
+            if ea != None:
                 umbrellaCategoryList.append(ea)
 
 
@@ -102,11 +120,11 @@ def buildCategoryList(html):
         
             for each in subLi:  
                 
-                if each is not None:  # to skip the empty subLi's
+                if each != None:  # to skip the empty subLi's
                     count += 1
                     subLists.append(each)    # append the category information.
                     
-        if count is not 0:  # to skip the empty subLi's
+        if count != 0:  # to skip the empty subLi's
             subCatCounter[subCatCounterIndex] = count
             subCatCounterIndex += 1
 
@@ -176,13 +194,10 @@ def buildCategoryTree(catLists):
             subCategory.setCategory_href(sub.find()['href'])
 
             # here we append the subcategory to a temp list of subcategories
-            tempSubCat.append(subCategory)  # list of sub categories within umbrella category
+            umbrellaCategory.addSubCategory(subCategory)
 
-        # here we set the list of subcategories to the umbrellaCategory Object
-        umbrellaCategory.setSubCategory(tempSubCat)
 
-        # here we append a list of umbrella categories to a temporary list of umbrella categories
-        tempUmbCat.append(umbrellaCategory)
+        tree.addSubCategory(umbrellaCategory)
         
 
 
@@ -191,8 +206,8 @@ def buildCategoryTree(catLists):
     # we only set the name and the list of umbrella categories
     
     tree.setCategoryName('Shop')
-    tree.setSubCategory(tempUmbCat)
-    
+
+    # return the tree object.
     return tree
 
 
@@ -213,8 +228,139 @@ def printCategoryTree(tree):
         for eachSub in eachUmbrella.getSubCategory():
             print('  |    |')
             print('  |    |--' + eachSub.getCategoryName())
+
+            if eachSub.getSubCategory() != None:
+                for eachLeaf in eachSub.getSubCategory():
+                    print('  |    |    |')
+                    print('  |    |    |--' + eachLeaf.getCategoryName())
+                
+
+
+
+
+    
+## here we look for the 'shop by type' keyword to determine if we have leaf nodes to add or not..
+def doesSubCategoryHaveLeafNodes(html):
+
+    startingKeyword = ['SHOP BY TYPE']  # MAYBE ADD DEPARTMENT, MENU, SHOP BY DEPARTMENT, ETC..
+
+    # will need to determine the method to find the correct tag for the starting node.
+
+    ### FIRST see if we can find our lists based on startingKeyword
+    tagSearch = html.findAll('div')  # this will work for heb.com
+
+    ### If not, then we look for a <button> with aria-expanded="false"
+    
+    leafExists = False
+    htmlNode = None
+    # Finds the startingKeyword as apart of startingKeywordTag,  <a> tag in this case
+    for search in tagSearch:
+        # since the keyword is in an <h2>, we need to sift through each <h2> in each <div>
+        h2Tag = search.findAll('h2')
+        if h2Tag != None:
+            for h in h2Tag:
+                for keyword in startingKeyword:
+                    if h.get_text().upper() == keyword:
+                        #here we append the first node in the category tree
+                        htmlNode = search  # first node's name in the tree.
+                        leafExists = True
+                        
+    # not sure why it finds the keyword 9 times, break statements when the only one found in the html is found 
+
+            
+    return leafExists, htmlNode
+
+
+def addLeafCategories(html, parent):
+
+    aTags = html.findAll('a')
+
+    for leaf in aTags[1::2]:
+        leafCat = GroceryCategoryTreeClass.GroceryCategoryTree()
+        name = leaf.get_text()
+        name = re.sub('[0-9()]', '', name)
+        leafCat.setCategoryName(name)
+        leafCat.setCategory_href(leaf['href'])
+        parent.addSubCategory(leafCat)
+
+    for eaLeaf in parent.getSubCategory():
+        print(eaLeaf.getCategoryName())        
+
+
+# function to add items to each category.
+def addItemsToCategory(site, category):
+
+    catSite = site + category.getCategory_href()
+    category_html = seleniumGetsItems(site)
+    
+    ulTags = category_html.findAll('ul')
+
+    for each in ulTags:
+        print(each.prettify())
     
 
+
+
+# this function gets the leaf nodes of each sub category and adds them to the tree.
+def openLeafNodeCategories(site, tree):
+
+    # get the href of each subcategory to get the sub-categories sub categories
+    # put the href in a list for quick and easy traversing.
+    subCat_href = []
+    subCats = []
+    
+#    index = 0
+    umbrellaCategories = tree.getSubCategory()
+    for eachUmbrella in tree.getSubCategory():
+        for eachSub in eachUmbrella.getSubCategory():
+
+#            site += eachSub.getCategory_href()            
+#            subCatHTML = seleniumGetsHTML(site)
+#            doLeavesExist = False
+#            doLeavesExist, subCatHTML = doesSubCategoryHaveLeafNodes(subCatHTML)
+#            if doLeavesExist is True:
+#                subCatHTML = getSiblingCategoryTags(subCatHTML)
+                # this is where we need to add leaf nodes to the tree.
+#                addLeafCategories(subCatHTML, eachSub)
+#            else:
+#                addItemsToCategory(eachSub)
+            
+
+            subCat_href.append(eachSub.getCategory_href())
+            subCats.append(eachSub)
+
+
+#            index += 1
+
+#   NOTE: NOT EVERY SUB CATEGORY HAS LEAF NODES TO BUILD ON! SUCH AS CHEESE.
+#   So, first we need to determine if there are leaf nodes we need to add to the tree.
+#   Looks like the best bet is to look for key phrase 'Shop by type' text that is on Vegetables, Meats.
+#   If there is no 'Shop by type' text, then we can simply add items to the subcategory
+#   and treat the subcategory as the leaf node.
+
+            
+    # first lets get it working for Fruits and Cheese..
+    # index 0 is fruits, which has sub categories
+    # index 13 is cheese, which does not have sub categories
+    subSite = site + subCat_href[0]              
+    subCatHTML = seleniumGetsHTML(subSite)
+    doLeavesExist = False
+    doLeavesExist, subCatHTML = doesSubCategoryHaveLeafNodes(subCatHTML)
+    if doLeavesExist is True:
+        subCatHTML = getSiblingCategoryTags(subCatHTML)
+        # this is where we need to add leaf nodes to the tree.
+        addLeafCategories(subCatHTML, subCats[0])
+
+        
+    printCategoryTree(tree)
+
+#    addItemsToCategory(site, subCats[13])
+
+
+    
+# THIS ENDS THE BUILDING OF THE TREE
+#*********************************************************************************************************************************
+# THIS IS WHERE WE START TO COLLECT ITEM INFORMATION AND STORE THEM AS ITEM OBJECTS IN THE LEAF OF THE TREES
     
 # main function    
 def main():
@@ -250,7 +396,15 @@ def main():
     # build the HEB shopping tree
     groceryCategoryTreeObject = buildCategoryTree(categoryLists)
 
-    printCategoryTree(groceryCategoryTreeObject)
+    
+    openLeafNodeCategories(groceryURL, groceryCategoryTreeObject)
+
+    # prints a visual representation of the categories tree.
+#    printCategoryTree(groceryCategoryTreeObject)
+
+#    getSubCategoryItems(groceryCategoryTreeObject)
+
+    
        
         
 main()
