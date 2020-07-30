@@ -1,4 +1,5 @@
-The Grocery Tree project is the start of a bigger dream.
+Grocery Tree project..
 
-Currently, the 'Grocery Tree.py' file will open heb.com and build a tree of category objects and print out a visual representation of the tree.
+Currently, the 'Grocery Tree.py' will allow the user to choose to build a tree of category objects scraping heb.com, save the tree to an excel file,
+and print out a visual representation of the tree.
 
