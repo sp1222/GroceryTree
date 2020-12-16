@@ -688,7 +688,128 @@ def getCategoryItemsTest(currentCategory, dr, site):
     dr.switch_to.window(dr.window_handles[0])
 
 
+#**********************************************************************************************************************************
+# function to save all items from HEB item tree to a single page csv file.
 
+def saveItemsInTree(root, name):
+    wb = Workbook()
+
+    wb.active = 0
+    sheet = wb.active
+    label = sheet.cell(row = 1, column = 1)
+    label.value = 'Name'       
+    label = sheet.cell(row = 1, column = 2)
+    label.value = 'Variant Price'       
+    label = sheet.cell(row = 1, column = 3)
+    label.value = 'Variant'       
+    label = sheet.cell(row = 1, column = 4)
+    label.value = 'Variant Pack Size'       
+    label = sheet.cell(row = 1, column = 5)
+    label.value = 'Variant Alt Price'       
+    label = sheet.cell(row = 1, column = 6)
+    label.value = 'Variant Alt'       
+    label = sheet.cell(row = 1, column = 7)
+    label.value = 'UOM Price'       
+    label = sheet.cell(row = 1, column = 8)
+    label.value = 'UOM'       
+    label = sheet.cell(row = 1, column = 9)
+    label.value = 'Brand'   
+    label = sheet.cell(row = 1, column = 10)
+    label.value = 'href'       
+    label = sheet.cell(row = 1, column = 11)
+    label.value = 'Item key'       
+    label = sheet.cell(row = 1, column = 12)
+    label.value = 'Category Name'       
+    label = sheet.cell(row = 1, column = 13)
+    label.value = 'Category Key'
+    label = sheet.cell(row = 1, column = 12)
+    label.value = 'Parent Category Name'       
+    label = sheet.cell(row = 1, column = 13)
+    label.value = 'Parent Category Key'
+
+    currentRow = 2
+    currentRow = saveCurrentCategoryItemsToWorkbook(wb, sheet, currentRow, root)
+            
+    openFile = name + '.xlsx'
+    wb.save(openFile)
+
+def saveCurrentCategoryItemsToWorkbook(wb, sheet, currentRow, currentCategory):
+    # if the current category does not have a sub category, then  we know we have items to save to the workbook.
+    # this is where we loop each product item from currentCategory
+    # and their respective product information.
+    currentColumn = 1
+    if len(currentCategory.getCategoryItems()) > 0:
+        for eachItem in currentCategory.getCategoryItems():
+            var = sheet.cell(row = currentRow, column = currentColumn)
+            var.value = eachItem.getItemName()
+            currentColumn += 1
+                
+            var = sheet.cell(row = currentRow, column = currentColumn)
+            var.value = eachItem.getItemVariantPrice()
+            currentColumn += 1
+                
+            var = sheet.cell(row = currentRow, column = currentColumn)
+            var.value = eachItem.getItemVariant()
+            currentColumn += 1
+            
+            var = sheet.cell(row = currentRow, column = currentColumn)
+            var.value = eachItem.getItemVariantPackSize()
+            currentColumn += 1
+                
+            var = sheet.cell(row = currentRow, column = currentColumn)
+            var.value = eachItem.getItemVariantAltPrice()
+            currentColumn += 1
+                
+            var = sheet.cell(row = currentRow, column = currentColumn)
+            var.value = eachItem.getItemVariantAlt()
+            currentColumn += 1
+                
+            var = sheet.cell(row = currentRow, column = currentColumn)
+            var.value = eachItem.getItemUOMPrice()
+            currentColumn += 1
+                
+            var = sheet.cell(row = currentRow, column = currentColumn)
+            var.value = eachItem.getItemUOM()
+            currentColumn += 1
+                
+            var = sheet.cell(row = currentRow, column = currentColumn)
+            var.value = eachItem.getItemBrand()
+            currentColumn += 1
+                
+            var = sheet.cell(row = currentRow, column = currentColumn)
+            var.value = eachItem.getItem_href()
+            currentColumn += 1
+                
+            var = sheet.cell(row = currentRow, column = currentColumn)
+            var.value = eachItem.getItemKey()
+            currentColumn += 1
+                
+            var = sheet.cell(row = currentRow, column = currentColumn)
+            var.value = eachItem.getItemCategoryName()
+            currentColumn += 1
+                
+            var = sheet.cell(row = currentRow, column = currentColumn)
+            var.value = eachItem.getItemCategoryKey()
+            currentColumn += 1
+                
+            var = sheet.cell(row = currentRow, column = currentColumn)
+            var.value = currentCategory.getCategoryParent().getCategoryName()
+            currentColumn += 1
+                
+            var = sheet.cell(row = currentRow, column = currentColumn)
+            var.value = currentCategory.getCategoryParentKey()
+
+            currentColumn = 1
+            currentRow += 1
+           
+    # recursively go through all sub categories until we reach a category that does not have sub categories.
+    if currentCategory.doSubCategoriesExist() == True:
+        for subCategory in currentCategory.getSubCategories():
+            currentRow = saveCurrentCategoryItemsToWorkbook(wb, sheet, currentRow, subCategory)
+
+    return currentRow
+    
+    
 
 #***********************************************************************************************************************************
 # menu options.
@@ -697,7 +818,7 @@ def getCategoryItemsTest(currentCategory, dr, site):
 def treeMenuOptions():
     
     choice = -1
-    while choice < 0 or choice > 5:
+    while choice < 0 or choice > 6:
         print('Beer advocate scraper, will be used for collecting our data')
         print('What operation are we running?')
         print('0. QUIT')
@@ -708,7 +829,7 @@ def treeMenuOptions():
         # NOTE: requires loading cateogires and items tree from excel
         print('4. Load Tree: load the tree from an excel file')
         print('5. Get Category Items: scrape grocery website for items in each category\n   and add to the tree')
-        print('6. TEST OPTION')    
+        print('6. Save all times to one csv file')    
 #        print('6. Look for missing CATEGORIES in Excel file')
 #        print('7. Load and print CATEGORIES tree')
 
@@ -772,9 +893,9 @@ def scrapeCategoryItems(tree, gURL):
 
 
 # OPTION FOR TESTING PURPOSES
-def testOption(name, url):
+def testOption(tree):
     print('\nBeginning Test')
-    loadCheese(name, url)
+    saveItemsInTree(tree, 'HEB_Items')
     print('\nTest Completed')
                         
 #*******************************************************************************************************
@@ -820,14 +941,13 @@ def main():
             operationChoice = treeMenuOptions()
             
         elif(operationChoice == 6):
-            testOption('HEB', groceryURL)
+            testOption(groceryCategoryTreeObject)
             operationChoice = treeMenuOptions()
             
     #    elif(operationChoice == 6):
             
     #    elif(operationChoice == 7):
 
-    exit()
         
         
 main()
